@@ -1,6 +1,5 @@
 import { STORAGE_KEY } from "./config.js";
-import { DEFAULT_COLUMN_WIDTH, DEFAULT_ROW_HEIGHT } from "./config.js";
-import { createBlankState } from "./table-model.js";
+import { DEFAULT_COLS, DEFAULT_COLUMN_WIDTH, DEFAULT_ROW_HEIGHT, DEFAULT_ROWS, defaultCellStyle } from "./config.js";
 
 export const appState = {
   data: null,
@@ -26,7 +25,7 @@ export const appState = {
 };
 
 export function initState() {
-  appState.data = migrateState(loadState() || createBlankState());
+  appState.data = migrateState(loadState() || createInitialState());
 }
 
 export function snapshot() {
@@ -71,6 +70,32 @@ function normalizeSizeArray(values, length, fallback) {
   const result = Array.isArray(values) ? values.slice(0, length) : [];
   while (result.length < length) result.push(fallback);
   return result.map((value) => Number(value) > 0 ? Number(value) : fallback);
+}
+
+function createInitialState() {
+  return {
+    rows: DEFAULT_ROWS,
+    cols: DEFAULT_COLS,
+    caption: "",
+    table: {
+      width: DEFAULT_COLS * DEFAULT_COLUMN_WIDTH,
+      theme: "clean",
+      zebra: false,
+      sticky: false,
+    },
+    columnWidths: Array.from({ length: DEFAULT_COLS }, () => DEFAULT_COLUMN_WIDTH),
+    rowHeights: Array.from({ length: DEFAULT_ROWS }, () => DEFAULT_ROW_HEIGHT),
+    cells: Array.from({ length: DEFAULT_ROWS }, () =>
+      Array.from({ length: DEFAULT_COLS }, () => ({
+        id: crypto.randomUUID(),
+        content: "",
+        rowSpan: 1,
+        colSpan: 1,
+        hidden: false,
+        style: { ...defaultCellStyle },
+      })),
+    ),
+  };
 }
 
 export function redo() {
