@@ -123,6 +123,7 @@ export function deleteCol() {
 
 export function setColumnWidth(index, width) {
   appState.data.columnWidths[index] = Math.max(MIN_COLUMN_WIDTH, Math.round(width));
+  appState.data.table.width = appState.data.columnWidths.reduce((sum, item) => sum + item, 0);
 }
 
 export function setRowHeight(index, height) {

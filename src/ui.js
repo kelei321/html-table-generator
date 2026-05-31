@@ -4,6 +4,8 @@ import { appState, saveState } from "./state.js";
 import { canMergeSelection, canUnmergeSelection, getCell } from "./table-model.js";
 import { samePos, visibleSelectedCells } from "./selection.js";
 
+let lastSelectionKeys = new Set();
+
 export const els = {
   previewWrap: document.getElementById("table-preview-wrap"),
   tableStage: document.getElementById("table-stage"),
@@ -12,6 +14,10 @@ export const els = {
   exportDrawer: document.getElementById("export-drawer"),
   exportBackdrop: document.getElementById("export-backdrop"),
   exportCode: document.getElementById("export-code"),
+  exportMeta: document.getElementById("export-meta"),
+  exportHint: document.getElementById("export-hint"),
+  copyCode: document.querySelector('[data-action="copy-code"]'),
+  resizeTooltip: document.getElementById("resize-tooltip"),
   gridSize: document.getElementById("grid-size"),
   rowCount: document.getElementById("row-count"),
   colCount: document.getElementById("col-count"),
@@ -39,7 +45,14 @@ export const els = {
   zoomValue: document.getElementById("zoom-value"),
 };
 
-export function render() {
+export function render(mode = "full") {
+  if (mode === "selection") {
+    renderSelectionState();
+    syncControls();
+    syncActionState();
+    syncDrawer();
+    return;
+  }
   renderPreview();
   syncControls();
   renderExport();
@@ -49,6 +62,23 @@ export function render() {
     () => { els.saveState.textContent = "正在保存..."; },
     () => { els.saveState.textContent = "本地自动保存"; },
   );
+}
+
+export function scheduleRender(mode = "full") {
+  appState.ui.pendingRenderMode = mergeRenderMode(appState.ui.pendingRenderMode, mode);
+  if (appState.ui.renderFrame) return;
+  appState.ui.renderFrame = window.requestAnimationFrame(() => {
+    const nextMode = appState.ui.pendingRenderMode || "full";
+    appState.ui.renderFrame = 0;
+    appState.ui.pendingRenderMode = null;
+    render(nextMode);
+  });
+}
+
+function mergeRenderMode(current, next) {
+  if (current === "full" || next === "full") return "full";
+  if (current === "preview" || next === "preview") return "preview";
+  return next;
 }
 
 export function renderPreview() {
@@ -79,6 +109,7 @@ export function renderPreview() {
 
   const thead = document.createElement("thead");
   const tbody = document.createElement("tbody");
+  const selectedKeys = selectionKeySet();
   data.cells.forEach((rowCells, rowIndex) => {
     const tr = document.createElement("tr");
     tr.style.height = `${data.rowHeights[rowIndex]}px`;
@@ -93,7 +124,7 @@ export function renderPreview() {
       node.rowSpan = cell.rowSpan;
       node.colSpan = cell.colSpan;
       node.append(document.createTextNode(cell.content));
-      node.className = cellClass(pos);
+      node.className = cellClass(pos, selectedKeys);
       applyCellStyle(node, cell.style);
       appendResizeHandles(node, pos);
       tr.append(node);
@@ -115,6 +146,7 @@ export function renderPreview() {
   els.previewWrap.innerHTML = "";
   els.previewWrap.classList.toggle("guides-on", els.showGuides.checked);
   els.previewWrap.append(sizeBox);
+  lastSelectionKeys = selectedKeys;
   if (appState.editingPos) focusCell(appState.editingPos, true);
 }
 
@@ -132,12 +164,36 @@ function appendResizeHandles(node, pos) {
   node.append(rowHandle);
 }
 
-function cellClass(pos) {
+function cellClass(pos, selectedKeys = selectionKeySet()) {
   const classes = [];
-  if (appState.selection.cells.some((item) => samePos(item, pos))) classes.push("range-cell");
+  if (selectedKeys.has(posKey(pos))) classes.push("range-cell");
   if (samePos(appState.selection.anchor, pos)) classes.push("selected-cell");
   if (samePos(appState.editingPos, pos)) classes.push("editing-cell");
   return classes.join(" ");
+}
+
+function renderSelectionState() {
+  const selectedKeys = selectionKeySet();
+  lastSelectionKeys.forEach((key) => updateCellClassByKey(key, selectedKeys));
+  selectedKeys.forEach((key) => updateCellClassByKey(key, selectedKeys));
+  updateCellClassByKey(posKey(appState.selection.anchor), selectedKeys);
+  if (appState.editingPos) updateCellClassByKey(posKey(appState.editingPos), selectedKeys);
+  lastSelectionKeys = selectedKeys;
+}
+
+function updateCellClassByKey(key, selectedKeys) {
+  const [row, col] = key.split(":").map(Number);
+  const node = cellNode({ row, col });
+  if (!node) return;
+  node.className = cellClass({ row, col }, selectedKeys);
+}
+
+function selectionKeySet() {
+  return new Set(appState.selection.cells.map(posKey));
+}
+
+function posKey(pos) {
+  return `${pos.row}:${pos.col}`;
 }
 
 function applyCellStyle(node, style) {
@@ -189,7 +245,9 @@ export function syncControls() {
 }
 
 export function renderExport() {
+  if (!appState.ui.exportDrawerOpen) return;
   els.exportCode.textContent = currentExportCode();
+  syncExportMeta();
 }
 
 export function syncActionState() {
@@ -221,11 +279,12 @@ function syncDrawer() {
   els.exportDrawer.classList.toggle("open", appState.ui.exportDrawerOpen);
   els.exportBackdrop.hidden = !appState.ui.exportDrawerOpen;
   els.exportDrawer.setAttribute("aria-hidden", String(!appState.ui.exportDrawerOpen));
+  if (appState.ui.exportDrawerOpen) renderExport();
 }
 
 export function setZoom(nextZoom) {
   appState.ui.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(nextZoom * 10) / 10));
-  render();
+  scheduleRender("preview");
 }
 
 export function changeZoom(direction) {
@@ -252,6 +311,38 @@ export function showToast(message) {
   els.toast.textContent = message;
   els.toast.classList.add("show");
   appState.toastTimer = window.setTimeout(() => els.toast.classList.remove("show"), 1900);
+}
+
+export function showResizeTooltip(x, y, value) {
+  appState.ui.resizeLabel = { x, y, value };
+  els.resizeTooltip.textContent = value;
+  els.resizeTooltip.style.left = `${x + 12}px`;
+  els.resizeTooltip.style.top = `${y + 12}px`;
+  els.resizeTooltip.hidden = false;
+}
+
+export function hideResizeTooltip() {
+  appState.ui.resizeLabel = null;
+  els.resizeTooltip.hidden = true;
+}
+
+export function flashCopyButton() {
+  if (!els.copyCode) return;
+  const original = els.copyCode.textContent;
+  els.copyCode.textContent = "已复制";
+  els.copyCode.classList.add("is-confirmed");
+  window.setTimeout(() => {
+    els.copyCode.textContent = original;
+    els.copyCode.classList.remove("is-confirmed");
+  }, 1100);
+}
+
+function syncExportMeta() {
+  if (!els.exportMeta || !els.exportHint) return;
+  const labels = { html: "HTML", css: "CSS", full: "完整文件" };
+  const lines = els.exportCode.textContent ? els.exportCode.textContent.split("\n").length : 0;
+  els.exportMeta.textContent = `${labels[appState.exportTab]} · ${lines} 行`;
+  els.exportHint.textContent = appState.exportTab === "html" ? "HTML 只包含结构与 class，复制使用时请同时复制 CSS。" : "";
 }
 
 export function cellNode(pos) {

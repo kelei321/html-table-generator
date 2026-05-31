@@ -25,6 +25,8 @@ async function run({ baseUrl }) {
     await expectDimensionDragAndRestore(page);
     await expectImportAndPaste(page);
     await expectExportDrawer(page);
+    await expectExportQuality(page);
+    await expectLargeTableInteractions(page);
     await expectLegacyStorageMigration(page, baseUrl);
 
     assert.deepEqual(consoleErrors, []);
@@ -82,17 +84,18 @@ async function dragSelectCells(page, startRow, startCol, endRow, endCol) {
   await page.mouse.down();
   await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2, { steps: 3 });
   await page.mouse.up();
-  await page.waitForFunction(() => document.querySelectorAll(".range-cell").length >= 4);
+  const expected = (Math.abs(endRow - startRow) + 1) * (Math.abs(endCol - startCol) + 1);
+  await page.waitForFunction((count) => document.querySelectorAll(".range-cell").length >= count, expected);
 }
 
 async function expectDimensionDragAndRestore(page) {
   const widthBefore = await firstColumnWidth(page);
-  await dragHandle(page, '[data-row="0"][data-col="0"] .col-resize-handle', 40, 0);
+  await dragHandle(page, '[data-row="0"][data-col="0"] .col-resize-handle', 40, 0, { expectTooltip: true });
   const widthAfter = await firstColumnWidth(page);
   assert.equal(widthAfter > widthBefore, true);
 
   const heightBefore = await firstRowHeight(page);
-  await dragHandle(page, '[data-row="0"][data-col="0"] .row-resize-handle', 0, 24);
+  await dragHandle(page, '[data-row="0"][data-col="0"] .row-resize-handle', 0, 24, { expectTooltip: true });
   const heightAfter = await firstRowHeight(page);
   assert.equal(heightAfter > heightBefore, true);
 
@@ -127,13 +130,67 @@ async function expectExportDrawer(page) {
   await page.waitForSelector("#export-drawer.open");
   assert.match(await page.locator("#export-code").textContent(), /<colgroup>/);
   assert.match(await page.locator("#export-code").textContent(), /<tr style="height: \d+px;">/);
+  assert.match(await page.locator("#export-code").textContent(), /class="htg-cell htg-style-1"/);
 
   await page.locator('[data-export-tab="css"]').click();
   assert.match(await page.locator("#export-code").textContent(), /\.htg-table/);
+  assert.match(await page.locator("#export-code").textContent(), /\.htg-style-1/);
   await page.locator('[data-export-tab="full"]').click();
   assert.match(await page.locator("#export-code").textContent(), /<!doctype html>/);
+  await page.locator('[data-action="copy-code"]').click();
+  await page.waitForFunction(() => document.querySelector('[data-action="copy-code"]')?.textContent === "已复制");
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => !document.querySelector("#export-drawer")?.classList.contains("open"));
+}
+
+async function expectExportQuality(page) {
+  await page.locator('[data-row="0"][data-col="0"]').click();
+  await page.keyboard.type("Z");
+  const closedCode = await page.locator("#export-code").textContent();
+  assert.equal(closedCode.includes("Z"), false);
+
+  await page.locator('[data-action="open-export"]').click();
+  await page.waitForSelector("#export-drawer.open");
+  await page.locator('[data-export-tab="html"]').click();
+  const html = await page.locator("#export-code").textContent();
+  assert.equal(html.includes("font-size:"), false);
+  assert.match(html, /class="htg-cell htg-style-1"/);
+  assert.match(await page.locator("#export-meta").textContent(), /HTML · \d+ 行/);
+  assert.match(await page.locator("#export-hint").textContent(), /CSS/);
+
+  await page.locator('[data-export-tab="css"]').click();
+  const css = await page.locator("#export-code").textContent();
+  assert.equal((css.match(/\.htg-style-/g) || []).length, 1);
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => !document.querySelector("#export-drawer")?.classList.contains("open"));
+}
+
+async function expectLargeTableInteractions(page) {
+  await page.evaluate(() => {
+    const rowCount = document.querySelector("#row-count");
+    const colCount = document.querySelector("#col-count");
+    rowCount.value = "100";
+    rowCount.dispatchEvent(new Event("change", { bubbles: true }));
+    colCount.value = "50";
+    colCount.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.waitForFunction(() => document.querySelector("#grid-size")?.textContent === "100 x 50");
+  assert.equal(await page.locator(".generated-table col").count(), 50);
+
+  await page.locator("#table-stage").evaluate((node) => {
+    node.scrollLeft = 0;
+    node.scrollTop = 0;
+  });
+  await page.locator('[data-row="0"][data-col="0"]').click();
+  await page.waitForFunction(() => document.activeElement?.matches('[data-row="0"][data-col="0"]'));
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.up("Shift");
+  await dragHandle(page, '[data-row="0"][data-col="0"] .col-resize-handle', 20, 0, { expectTooltip: true });
+  await page.locator('[data-action="zoom-in"]').click();
+  await page.waitForFunction(() => document.querySelector("#zoom-value")?.textContent === "110%");
 }
 
 async function expectLegacyStorageMigration(page, baseUrl) {
@@ -158,7 +215,7 @@ async function expectLegacyStorageMigration(page, baseUrl) {
   assert.equal(saved.cells[0][0].style.fontSize, 14);
 }
 
-async function dragHandle(page, selector, deltaX, deltaY) {
+async function dragHandle(page, selector, deltaX, deltaY, options = {}) {
   const box = await page.locator(selector).boundingBox();
   assert.ok(box);
   const x = box.x + box.width / 2;
@@ -166,7 +223,14 @@ async function dragHandle(page, selector, deltaX, deltaY) {
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + deltaX, y + deltaY, { steps: 4 });
+  if (options.expectTooltip) {
+    await page.waitForFunction(() => !document.querySelector("#resize-tooltip")?.hidden);
+    assert.match(await page.locator("#resize-tooltip").textContent(), /\d+px/);
+  }
   await page.mouse.up();
+  if (options.expectTooltip) {
+    await page.waitForFunction(() => document.querySelector("#resize-tooltip")?.hidden);
+  }
 }
 
 async function firstColumnWidth(page) {

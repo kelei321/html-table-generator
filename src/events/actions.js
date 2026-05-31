@@ -17,6 +17,7 @@ import {
   changeZoom,
   closeExportDrawer,
   els,
+  flashCopyButton,
   hideContextMenu,
   openExportDrawer,
   render,
@@ -64,6 +65,7 @@ function handleDocumentClick(event) {
     "close-export": closeExportDrawer,
     "copy-code": async () => {
       await copyText(els.exportCode.textContent);
+      flashCopyButton();
       showToast("已复制导出代码");
     },
     "zoom-in": () => changeZoom(1),

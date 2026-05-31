@@ -2,7 +2,7 @@ import { copyText } from "../exporter.js";
 import { appState, redo, undo, commit } from "../state.js";
 import { clearSelectedContent, clamp, getCell, setCellContent } from "../table-model.js";
 import { rangeCells, setSelection } from "../selection.js";
-import { cellNode, closeExportDrawer, focusCell, render, renderExport, showToast, syncControls } from "../ui.js";
+import { cellNode, closeExportDrawer, focusCell, render, renderExport, scheduleRender, showToast, syncControls } from "../ui.js";
 import { copySelectionAsTsv } from "./clipboard.js";
 import { cellPos, finish, isFormTarget } from "./shared.js";
 
@@ -118,7 +118,7 @@ function moveSelection(deltaRow, deltaCol, extend = false) {
   }
   const target = { row, col };
   setSelection(extend ? rangeCells(appState.selection.anchor, target) : [target], extend ? appState.selection.anchor : target);
-  render();
+  scheduleRender("selection");
   focusCell(target);
 }
 
@@ -130,7 +130,7 @@ function moveTab(reverse = false) {
     const target = { row: Math.floor(index / appState.data.cols), col: index % appState.data.cols };
     if (!getCell(target)?.hidden) {
       setSelection([target], target);
-      render();
+      scheduleRender("selection");
       focusCell(target);
       return;
     }

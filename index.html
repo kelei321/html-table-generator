@@ -212,6 +212,10 @@
         </div>
         <button data-action="copy-code">复制代码</button>
         <button data-action="download">下载 HTML</button>
+        <div class="export-summary">
+          <span id="export-meta">HTML · 0 行</span>
+          <span id="export-hint"></span>
+        </div>
       </div>
       <pre><code id="export-code"></code></pre>
     </aside>
@@ -231,6 +235,7 @@
       <button data-action="clear-style">清除样式</button>
     </div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="resize-tooltip" class="resize-tooltip" hidden></div>
 
     <script type="module" src="./app.js"></script>
   </body>

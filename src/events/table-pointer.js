@@ -4,9 +4,12 @@ import { rangeCells, setSelection } from "../selection.js";
 import {
   els,
   focusCell,
+  hideResizeTooltip,
   render,
   renderExport,
+  scheduleRender,
   setZoom,
+  showResizeTooltip,
   showContextMenu,
   syncControls,
 } from "../ui.js";
@@ -35,6 +38,7 @@ function handleDocumentMouseup() {
   appState.ui.resize = null;
   appState.ui.isPanning = false;
   els.tableStage.classList.remove("panning");
+  hideResizeTooltip();
   if (shouldRender) render();
 }
 
@@ -43,10 +47,12 @@ function handleDocumentMousemove(event) {
   if (!resize) return;
   if (resize.type === "col") {
     setColumnWidth(resize.index, resize.initial + (event.clientX - resize.startX) / appState.ui.zoom);
+    showResizeTooltip(event.clientX, event.clientY, `${appState.data.columnWidths[resize.index]}px`);
   } else {
     setRowHeight(resize.index, resize.initial + (event.clientY - resize.startY) / appState.ui.zoom);
+    showResizeTooltip(event.clientX, event.clientY, `${appState.data.rowHeights[resize.index]}px`);
   }
-  render();
+  scheduleRender("preview");
 }
 
 function handlePreviewMouseDown(event) {
@@ -84,7 +90,7 @@ function handlePreviewClick(event) {
   if (!cell || appState.editingPos) return;
   const pos = cellPos(cell);
   setSelection(event.shiftKey ? rangeCells(appState.selection.anchor, pos) : [pos], event.shiftKey ? appState.selection.anchor : pos);
-  render();
+  scheduleRender("selection");
   focusCell(appState.selection.anchor);
 }
 
@@ -93,7 +99,7 @@ function handlePreviewMouseover(event) {
   const cell = event.target.closest("td, th");
   if (!cell) return;
   setSelection(rangeCells(appState.dragAnchor, cellPos(cell)), appState.dragAnchor);
-  render();
+  scheduleRender("selection");
 }
 
 function handlePreviewDblclick(event) {
@@ -108,7 +114,7 @@ function handlePreviewContextmenu(event) {
   const pos = cellPos(cell);
   if (!appState.selection.cells.some((item) => item.row === pos.row && item.col === pos.col)) {
     setSelection([pos], pos);
-    render();
+    scheduleRender("selection");
   }
   showContextMenu(event.clientX, event.clientY);
 }

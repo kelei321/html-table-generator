@@ -28,6 +28,9 @@ export const appState = {
     panScrollLeft: 0,
     panScrollTop: 0,
     resize: null,
+    resizeLabel: null,
+    renderFrame: 0,
+    pendingRenderMode: null,
   },
 };
 
