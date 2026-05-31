@@ -64,7 +64,14 @@ node --check server.cjs
 PowerShell 中可检查所有模块：
 
 ```powershell
-Get-ChildItem src -Filter *.js | ForEach-Object { node --check $_.FullName }
+Get-ChildItem src -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName }
+Get-ChildItem tests/e2e -Filter *.cjs | ForEach-Object { node --check $_.FullName }
+```
+
+浏览器回归测试需要本机 Node 环境可加载 Playwright：
+
+```bash
+node tests/e2e/run.cjs
 ```
 
 ## GitHub Pages

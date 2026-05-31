@@ -1,5 +1,12 @@
-import { STORAGE_KEY } from "./config.js";
-import { DEFAULT_COLS, DEFAULT_COLUMN_WIDTH, DEFAULT_ROW_HEIGHT, DEFAULT_ROWS, defaultCellStyle } from "./config.js";
+import {
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_COLS,
+  DEFAULT_COLUMN_WIDTH,
+  DEFAULT_ROW_HEIGHT,
+  DEFAULT_ROWS,
+  STORAGE_KEY,
+  defaultCellStyle,
+} from "./config.js";
 
 export const appState = {
   data: null,
@@ -54,8 +61,17 @@ export function undo() {
   return true;
 }
 
-function migrateState(data) {
+export function migrateState(data) {
+  const version = Number(data.schemaVersion || 0);
+  if (version < 1) migrateV0ToV1(data);
+  data.schemaVersion = CURRENT_SCHEMA_VERSION;
+  return data;
+}
+
+function migrateV0ToV1(data) {
   data.caption ??= "";
+  data.rows = Math.max(1, Math.floor(Number(data.rows) || data.cells?.length || DEFAULT_ROWS));
+  data.cols = Math.max(1, Math.floor(Number(data.cols) || data.cells?.[0]?.length || DEFAULT_COLS));
   data.table ??= {};
   data.table.width ??= data.cols * DEFAULT_COLUMN_WIDTH;
   data.table.theme ??= "clean";
@@ -63,7 +79,24 @@ function migrateState(data) {
   data.table.sticky ??= false;
   data.columnWidths = normalizeSizeArray(data.columnWidths, data.cols, DEFAULT_COLUMN_WIDTH);
   data.rowHeights = normalizeSizeArray(data.rowHeights, data.rows, DEFAULT_ROW_HEIGHT);
-  return data;
+  data.cells = normalizeCells(data.cells, data.rows, data.cols);
+}
+
+function normalizeCells(cells, rows, cols) {
+  return Array.from({ length: rows }, (_, row) =>
+    Array.from({ length: cols }, (_, col) => normalizeCell(cells?.[row]?.[col])),
+  );
+}
+
+function normalizeCell(cell) {
+  return {
+    id: cell?.id || crypto.randomUUID(),
+    content: cell?.content ?? "",
+    rowSpan: Math.max(1, Math.floor(Number(cell?.rowSpan) || 1)),
+    colSpan: Math.max(1, Math.floor(Number(cell?.colSpan) || 1)),
+    hidden: Boolean(cell?.hidden),
+    style: { ...defaultCellStyle, ...(cell?.style || {}) },
+  };
 }
 
 function normalizeSizeArray(values, length, fallback) {
@@ -74,6 +107,7 @@ function normalizeSizeArray(values, length, fallback) {
 
 function createInitialState() {
   return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     rows: DEFAULT_ROWS,
     cols: DEFAULT_COLS,
     caption: "",

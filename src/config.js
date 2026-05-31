@@ -1,4 +1,5 @@
 export const STORAGE_KEY = "html-table-generator:v1";
+export const CURRENT_SCHEMA_VERSION = 1;
 export const DEFAULT_ROWS = 5;
 export const DEFAULT_COLS = 4;
 export const DEFAULT_COLUMN_WIDTH = 120;

@@ -1,4 +1,5 @@
 import {
+  CURRENT_SCHEMA_VERSION,
   DEFAULT_COLS,
   DEFAULT_COLUMN_WIDTH,
   DEFAULT_ROW_HEIGHT,
@@ -12,6 +13,7 @@ import { normalizeSelection, visibleSelectedCells } from "./selection.js";
 
 export function createBlankState(rows = DEFAULT_ROWS, cols = DEFAULT_COLS) {
   return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     rows,
     cols,
     caption: "",
