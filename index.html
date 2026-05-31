@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HTML Table Generator</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">T</div>
+          <div>
+            <h1>HTML Table Generator</h1>
+            <p>可视化表格生成器</p>
+          </div>
+        </div>
+        <div class="toolbar" aria-label="表格工具栏">
+          <button class="icon-button" data-action="undo" title="撤销" aria-label="撤销">↶</button>
+          <button class="icon-button" data-action="redo" title="重做" aria-label="重做">↷</button>
+          <span class="divider"></span>
+          <button data-action="add-row">+ 行</button>
+          <button data-action="add-col">+ 列</button>
+          <button data-action="delete-row">删行</button>
+          <button data-action="delete-col">删列</button>
+          <span class="divider"></span>
+          <button data-action="merge">合并</button>
+          <button data-action="unmerge">拆分</button>
+          <button data-action="clear-cell">清空</button>
+        </div>
+        <div class="top-actions">
+          <button class="ghost" data-action="reset">重置</button>
+          <button data-action="open-export">导出代码</button>
+          <button class="primary" data-action="download">下载 HTML</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="panel left-panel" aria-label="结构面板">
+          <section class="panel-section">
+            <div class="section-head">
+              <h2>表格结构</h2>
+              <span id="grid-size">0 x 0</span>
+            </div>
+            <div class="control-grid two">
+              <label>
+                行数
+                <input id="row-count" type="number" min="1" />
+              </label>
+              <label>
+                列数
+                <input id="col-count" type="number" min="1" />
+              </label>
+            </div>
+          </section>
+
+          <section class="panel-section">
+            <div class="section-head">
+              <h2>当前单元格</h2>
+              <span id="cell-position">未选择</span>
+            </div>
+            <label>
+              内容
+              <textarea id="cell-content" rows="5" placeholder="选择单元格后编辑内容"></textarea>
+            </label>
+            <div class="control-grid two">
+              <label>
+                Colspan
+                <input id="cell-colspan" type="number" min="1" readonly />
+              </label>
+              <label>
+                Rowspan
+                <input id="cell-rowspan" type="number" min="1" readonly />
+              </label>
+            </div>
+          </section>
+
+          <section class="panel-section">
+            <div class="section-head">
+              <h2>数据导入</h2>
+            </div>
+            <textarea id="paste-data" rows="5" placeholder="粘贴 CSV 或制表符数据"></textarea>
+            <button class="wide" data-action="import-data">导入为表格</button>
+          </section>
+        </aside>
+
+        <section class="canvas-area" aria-label="表格编辑区">
+          <div class="canvas-top">
+            <div>
+              <h2 id="table-name">月度运营报表</h2>
+              <p id="save-state">本地自动保存</p>
+            </div>
+            <div class="view-options">
+              <div class="zoom-controls" aria-label="缩放控制">
+                <button data-action="zoom-out" title="缩小" aria-label="缩小">-</button>
+                <span id="zoom-value">100%</span>
+                <button data-action="zoom-in" title="放大" aria-label="放大">+</button>
+                <button data-action="zoom-reset">复位</button>
+              </div>
+              <label class="switch">
+                <input id="show-guides" type="checkbox" checked />
+                <span>辅助线</span>
+              </label>
+              <label class="switch">
+                <input id="zebra-toggle" type="checkbox" />
+                <span>斑马纹</span>
+              </label>
+              <label class="switch">
+                <input id="sticky-toggle" type="checkbox" />
+                <span>固定表头</span>
+              </label>
+            </div>
+          </div>
+          <div id="table-stage" class="table-stage">
+            <div id="selection-hint" class="selection-hint">单击选择，拖拽或 Shift + 单击框选，Enter 编辑，Ctrl/Cmd+V 粘贴</div>
+            <div id="table-preview-wrap" class="table-preview-wrap guides-on"></div>
+          </div>
+        </section>
+
+        <aside class="panel right-panel" aria-label="样式面板">
+          <section class="panel-section">
+            <div class="section-head">
+              <h2>表格样式</h2>
+            </div>
+            <label>
+              标题
+              <input id="caption-input" type="text" />
+            </label>
+            <label>
+              宽度
+              <input id="table-width" type="range" min="480" max="1200" step="20" />
+              <span id="table-width-value" class="range-value"></span>
+            </label>
+            <label>
+              主题
+              <select id="theme-select">
+                <option value="clean">Clean</option>
+                <option value="editorial">Editorial</option>
+                <option value="finance">Finance</option>
+                <option value="contrast">Contrast</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="panel-section">
+            <div class="section-head">
+              <h2>单元格样式</h2>
+              <span id="selection-count">0 个</span>
+            </div>
+            <div class="button-row" role="group" aria-label="文字样式">
+              <button data-style="fontWeight" data-value="700">B</button>
+              <button data-style="fontStyle" data-value="italic">I</button>
+              <button data-style="textDecoration" data-value="underline">U</button>
+            </div>
+            <div class="button-row" role="group" aria-label="对齐方式">
+              <button data-style="textAlign" data-value="left">左</button>
+              <button data-style="textAlign" data-value="center">中</button>
+              <button data-style="textAlign" data-value="right">右</button>
+            </div>
+            <div class="control-grid two">
+              <label>
+                字号
+                <input id="font-size" type="number" min="10" max="32" />
+              </label>
+              <label>
+                内边距
+                <input id="cell-padding" type="number" min="4" max="36" />
+              </label>
+            </div>
+            <div class="control-grid two">
+              <label>
+                文字
+                <input id="text-color" type="color" />
+              </label>
+              <label>
+                背景
+                <input id="bg-color" type="color" />
+              </label>
+            </div>
+            <div class="control-grid two">
+              <label>
+                边框色
+                <input id="border-color" type="color" />
+              </label>
+              <label>
+                边框宽
+                <input id="border-width" type="number" min="0" max="8" />
+              </label>
+            </div>
+            <button class="wide" data-action="clear-style">清除样式</button>
+          </section>
+        </aside>
+      </main>
+
+    </div>
+
+    <div id="export-backdrop" class="drawer-backdrop" hidden></div>
+    <aside id="export-drawer" class="export-drawer" aria-label="导出代码" aria-hidden="true">
+      <div class="export-head">
+        <div>
+          <h2>导出代码</h2>
+          <p>生成可复制的 HTML 与 CSS</p>
+        </div>
+        <button class="icon-button" data-action="close-export" title="关闭" aria-label="关闭">×</button>
+      </div>
+      <div class="export-tools">
+        <div class="tabs export-tabs" role="tablist">
+          <button class="active" data-export-tab="html">HTML</button>
+          <button data-export-tab="css">CSS</button>
+          <button data-export-tab="full">完整文件</button>
+        </div>
+        <button data-action="copy-code">复制代码</button>
+        <button data-action="download">下载 HTML</button>
+      </div>
+      <pre><code id="export-code"></code></pre>
+    </aside>
+
+    <div id="context-menu" class="context-menu" hidden>
+      <button data-action="insert-row-above">上方插入行</button>
+      <button data-action="insert-row-below">下方插入行</button>
+      <button data-action="insert-col-left">左侧插入列</button>
+      <button data-action="insert-col-right">右侧插入列</button>
+      <span></span>
+      <button data-action="delete-row">删除当前行</button>
+      <button data-action="delete-col">删除当前列</button>
+      <span></span>
+      <button data-action="merge">合并选区</button>
+      <button data-action="unmerge">拆分单元格</button>
+      <button data-action="clear-cell">清空内容</button>
+      <button data-action="clear-style">清除样式</button>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
